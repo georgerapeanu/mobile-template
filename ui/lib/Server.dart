@@ -18,6 +18,8 @@ class Server {
   static final DELETED = "deleted";
   static final CONNECTION = "connection";
   static final WEBSOCKET = "websocket";
+  static final START_LOADING_OPERATION = "loading";
+  static final END_LOADING_OPERATION = "end loading";
   ///
 
 
@@ -63,6 +65,7 @@ class Server {
 
   Future<List<DBPet>> get_all() async {
     logger.info("Server get all called");
+    notify_listeners(START_LOADING_OPERATION, null);
     try {
       final response = await http.get(
           Uri.parse('$_httpBase/pets'), headers: headers);
@@ -82,11 +85,14 @@ class Server {
     } on SocketException catch (_) {
       logger.severe("Get all request failed");
       throw ServerException('Failed to get all from server');
+    } finally {
+      notify_listeners(END_LOADING_OPERATION, null);
     }
   }
 
   Future<DBPet> get(int id) async {
     logger.info("Server get/$id called");
+    notify_listeners(START_LOADING_OPERATION, null);
     try {
       final response =
           await http.get(Uri.parse('$_httpBase/pet/$id'), headers: headers);
@@ -105,11 +111,14 @@ class Server {
     } on SocketException catch (_) {
       logger.severe("Get/$id request failed");
       throw ServerException('Failed to get/$id from server');
+    } finally {
+      notify_listeners(END_LOADING_OPERATION, null);
     }
   }
 
   Future<void> add(DBPet entity) async {
     logger.info("Server add ${entity.toMap()} called");
+    notify_listeners(START_LOADING_OPERATION, null);
     try {
       final response = await http.post(Uri.parse('$_httpBase/pet'),
           body: jsonEncode(ServerPet.fromDBPet(entity).toMap()),
@@ -128,12 +137,15 @@ class Server {
     } on SocketException catch (_) {
       logger.severe("Add ${entity.toMap()} request failed");
       throw ServerException('Failed to add to server');
+    } finally {
+      notify_listeners(END_LOADING_OPERATION, null);
     }
   }
 
   //TODO update doesnt work? check put vs patch
   Future<void> update(DBPet entity) async {
     logger.info("Server update ${entity.toMap()} called");
+    notify_listeners(START_LOADING_OPERATION, null);
     try {
       final response = await http.put(Uri.parse('$_httpBase/pet/${entity.id}'),
           body: jsonEncode(ServerPet.fromDBPet(entity).toMap()),
@@ -152,11 +164,14 @@ class Server {
     } on SocketException catch (_) {
       logger.severe("update ${entity.toMap()} request failed");
       throw ServerException('Failed to update to server');
+    } finally {
+      notify_listeners(END_LOADING_OPERATION, null);
     }
   }
 
   Future<void> delete(DBPet entity) async {
     logger.info("Server delete ${entity.toMap()} called");
+    notify_listeners(START_LOADING_OPERATION, null);
     try {
       final response = await http
           .delete(Uri.parse('$_httpBase/pet/${entity.id}'), headers: headers);
@@ -174,15 +189,19 @@ class Server {
     } on SocketException catch (_) {
       logger.severe("delete ${entity.toMap()} request failed");
       throw ServerException('Failed to delete from server');
+    } finally {
+      notify_listeners(END_LOADING_OPERATION, null);
     }
   }
 
   Future<void> retry_connection() async {
     logger.info("Retry called");
+
     if (_isConnected) {
       logger.warning("Already connected, skipping retry");
       return;
     }
+    notify_listeners(START_LOADING_OPERATION, null);
     channel = WebSocketChannel.connect(Uri.parse(_wsBase));
     try {
       await channel.ready;
@@ -233,11 +252,14 @@ class Server {
           retry_connection();
         });
       }
+    } finally {
+      notify_listeners(END_LOADING_OPERATION, null);
     }
   }
 
   Future<List<DBPet>> search({String? breed, int? age, String? location}) async {
     logger.info("Server search called");
+    notify_listeners(START_LOADING_OPERATION, null);
     try {
       final response = await http
           .get(Uri.parse('$_httpBase/search'), headers: headers);
@@ -272,6 +294,8 @@ class Server {
     } on SocketException catch (_) {
       logger.severe("Search request failed");
       throw ServerException('Failed to search on server');
+    } finally {
+      notify_listeners(END_LOADING_OPERATION, null);
     }
   }
 }

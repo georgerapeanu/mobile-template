@@ -63,7 +63,8 @@ router.get('/pet/:id', ctx => {
   }
 });
 
-router.get('/search', ctx => {
+router.get('/search', async ctx => {
+  await new Promise(r => setTimeout(r, 2000));
   ctx.response.body = pets;
   ctx.response.status = 200;
 });

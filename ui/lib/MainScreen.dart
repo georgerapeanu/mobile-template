@@ -10,6 +10,7 @@ import 'package:ui/Repository.dart';
 import 'package:ui/Server.dart';
 
 import 'AppException.dart';
+import 'Debouncer.dart';
 
 class AddEntityScreen extends StatefulWidget {
   const AddEntityScreen({super.key});
@@ -243,6 +244,8 @@ class SearchScreenState extends State<SearchScreen> {
   String? breed = "";
   String? location = "";
   int? age;
+  var isLoading = false;
+  final debouncer = Debouncer(milliseconds: 200);
 
   @override
   void initState() {
@@ -252,91 +255,117 @@ class SearchScreenState extends State<SearchScreen> {
 
   Future<void> async_init() async {
     entities = await (await Server.instance).search(breed: breed, location: location, age: age);
+    Server server = await (Server.instance);
+    server.add_listener((String topic, Object? data) {
+      if(topic == Repository.START_LOADING_OPERATION) {
+        isLoading = true;
+      } else if (topic == Server.END_LOADING_OPERATION) {
+        isLoading = false;
+      }
+      setState(() {
+
+      });
+    });
     setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-        appBar: AppBar(
-          title: Column(children: [Text("Search screen")]),
-          backgroundColor: Color(0x7f7f7f),
-        ),
-        body: Column(
-            children:[
-              Row(
-                  children: [
-                    Text("Breed:"),
-                    Expanded(child: TextFormField(
-                      onChanged: (value) async {
+    Widget bodyWidget =  Column(
+        children: [
+          Row(
+              children: [
+                Text("Breed:"),
+                Expanded(child: TextFormField(
+                    onChanged: (value) {
+                      debouncer.run(() async {
                         breed = value;
                         entities = await (await Server.instance).search(
                             breed: breed, location: location, age: age);
-                        setState(() {
-                        });
-                      }
-                    )),
-                  ]
-              ),
-              Row(
-                  children: [
-                    Text("Location:"),
-                    Expanded(child: TextFormField(
-                        onChanged: (value) async {
-                          location = value;
-                          entities = await (await Server.instance).search(
-                              breed: breed, location: location, age: age);
-                          setState(() {
+                        setState(() {});
+                      });
+                    },
+                  initialValue: breed,
+                )),
+              ]
+          ),
+          Row(
+              children: [
+                Text("Location:"),
+                Expanded(child: TextFormField(
+                  onChanged: (value) {
+                    debouncer.run(() async {
+                      location = value;
+                      entities = await (await Server.instance).search(
+                          breed: breed, location: location, age: age);
+                      setState(() {});
+                    });
+                  },
+                  initialValue: location,
+                )),
+              ]
+          ),
+          Row(
+              children: [
+                Text("Age:"),
+                Expanded(child: TextFormField(
+                  onChanged: (value) {
+                    debouncer.run(() async {
+                      age = int.tryParse(value);
+                      entities = await (await Server.instance).search(
+                          breed: breed, location: location, age: age);
+                      setState(() {});
+                    });
+                  },
+                  initialValue: (age == null ? "":age.toString()),
+                )),
+              ]
+          ),
+          Expanded(
+              child: ListView.builder(
+                  itemCount: entities.length,
+                  itemBuilder: (context, index) {
+                    DBPet entity = entities[index];
+                    List<Widget> toDisplay = [];
+                    toDisplay.add(Text("Breed: ${entity.breed}"));
+                    toDisplay.add(Text("Age: ${entity.age}"));
+                    toDisplay.add(Text("weight: ${entity.weight}"));
+                    toDisplay.add(Text("Owner: ${entity.owner}"));
+                    toDisplay.add(Text("Location: ${entity.location}"));
+                    toDisplay.add(
+                        Text("Description: ${entity.description}"));
 
-                          });
-                        }
-                    )),
-                  ]
-              ),
-              Row(
-                  children: [
-                    Text("Age:"),
-                    Expanded(child: TextFormField(
-                        onChanged: (value) async {
-                          age = int.tryParse(value);
-                          entities = await (await Server.instance).search(
-                              breed: breed, location: location, age: age);
-                          setState(() {
-
-                          });
-                        }
-                    )),
-                  ]
-              ),
-              Expanded(
-                  child: ListView.builder(
-                      itemCount: entities.length,
-                      itemBuilder: (context, index) {
-                        DBPet entity = entities[index];
-                        List<Widget> toDisplay = [];
-                        toDisplay.add(Text("Breed: ${entity.breed}"));
-                        toDisplay.add(Text("Age: ${entity.age}"));
-                        toDisplay.add(Text("weight: ${entity.weight}"));
-                        toDisplay.add(Text("Owner: ${entity.owner}"));
-                        toDisplay.add(Text("Location: ${entity.location}"));
-                        toDisplay.add(Text("Description: ${entity.description}"));
-
-                        return Card(
-                          color: Color(0x7f7f7f),
-                          child: Column(
-                            children: [
-                              ExpansionTile(
-                                title: Text("${index + 1}. ${entity.name}"),
-                                children: toDisplay
-                              ),
-                            ],
+                    return Card(
+                      color: Color(0x7f7f7f),
+                      child: Column(
+                        children: [
+                          ExpansionTile(
+                              title: Text("${index + 1}. ${entity.name}"),
+                              children: toDisplay
                           ),
-                        );
-                      }
-                  )
+                        ],
+                      ),
+                    );
+                  }
               )
-            ]
+          )
+        ]
+    );
+    bodyWidget = Stack(
+      children: [
+        bodyWidget,
+        // Center the loading indicator
+        if(isLoading) Center(
+          child: CircularProgressIndicator(),
         )
+      ],
+    );
+    return Scaffold(
+        appBar: AppBar(
+          title: Text("Search screen"),
+          backgroundColor: Color.fromRGBO(127, 127, 127, 1),
+        ),
+        body: bodyWidget
     );
   }
 }
@@ -352,6 +381,7 @@ class MainScreenState extends State<MainScreen> {
   List<DBPet> entities = [];
   bool isConnected = false;
   bool dbUninitialized = false;
+  bool isLoading = false;
   static final Logger logger = Logger("MainScreenLogger");
   @override
   void initState() {
@@ -370,10 +400,24 @@ class MainScreenState extends State<MainScreen> {
             duration: Duration(seconds: 2),
           ),
         );
+      } else if(topic == Repository.START_LOADING_OPERATION) {
+        isLoading = true;
+      } else if(topic == Repository.END_LOADING_OPERATION){
+        isLoading = false;
       }
       fetchState();
     });
-    fetchState();
+    Server server = await (Server.instance);
+    server.add_listener((String topic, Object? data) {
+      if (topic == Server.START_LOADING_OPERATION) {
+        isLoading = true;
+      } else if (topic == Server.END_LOADING_OPERATION) {
+        isLoading = false;
+      }
+      setState(() {
+
+      });
+    });
   }
 
   void fetchState() async {
@@ -533,16 +577,24 @@ class MainScreenState extends State<MainScreen> {
       );
     }
 
-    return Scaffold(
-        appBar: AppBar(
-          title: Column(children: [
-            Text("Pets app"),
-            Text("Device is ${isConnected ? "online":"offline"}", style: TextStyle(color: isConnected ? green:red),)]),
-          backgroundColor: Color.fromRGBO(127, 127, 127, 1),
-        ),
-        body: Column(
-            children: toDisplay
+    Widget bodyWidget = Column(children: toDisplay);
+    bodyWidget = Stack(
+      children: [
+        bodyWidget,
+        // Center the loading indicator
+        if(isLoading) Center(
+          child: CircularProgressIndicator(backgroundColor: Color.fromRGBO(127, 127, 127, 0.5)),
         )
+      ],
     );
+      return Scaffold(
+          appBar: AppBar(
+            title: Column(children: [
+              Text("Pets app"),
+              Text("Device is ${isConnected ? "online":"offline"}", style: TextStyle(color: isConnected ? green:red),)]),
+            backgroundColor: Color.fromRGBO(127, 127, 127, 1),
+          ),
+          body: bodyWidget
+      );
   }
 }

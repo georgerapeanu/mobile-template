@@ -11,6 +11,8 @@ class Repository {
   /// LISTENER TOPIC SECTION
   static final String UI_UPDATE = "ui update";
   static final String WEBSOCKET = "WEBSOCKET";
+  static final START_LOADING_OPERATION = "loading";
+  static final END_LOADING_OPERATION = "end loading";
   ///
 
   static final Logger logger = Logger("RepositoryLogger");
@@ -32,20 +34,24 @@ class Repository {
 
 
   Future<void> reinitialize_repos() async {
+    notify_listeners(START_LOADING_OPERATION, null);
     List<DBPet>? entities;
-    if(await (await LocalDatabase.instance).uninitialized) {
-      try {
-        entities ??= await (await Server.instance).get_all();
-        await (await LocalDatabase.instance).bulkAdd(entities);
-        await (await LocalDatabase.instance).set_initialized();
-      } on ServerException catch (_) {
-        logger.warning("server could not be reached for db initialization");
+    try {
+      if (await (await LocalDatabase.instance).uninitialized) {
+        try {
+          entities ??= await (await Server.instance).get_all();
+          await (await LocalDatabase.instance).bulkAdd(entities);
+          await (await LocalDatabase.instance).set_initialized();
+        } on ServerException catch (_) {
+          logger.warning("server could not be reached for db initialization");
+        }
       }
+      entities ??= await (await LocalDatabase.instance).get_all();
+      await (await InMemoryRepo.instance).bulkAdd(entities);
+    } on AppException catch (ex) {
+      notify_listeners(END_LOADING_OPERATION, null);
+      throw ex;
     }
-    entities ??= await (await LocalDatabase.instance).get_all();
-    await (await InMemoryRepo.instance).bulkAdd(entities);
-
-
   }
 
   static Future<Repository> _init_repository() async {
@@ -94,16 +100,29 @@ class Repository {
     logger.info("Get $id called");
     DBPet entity = await (await InMemoryRepo.instance).get(id);
     if(!entity.hasDetails) {
-      entity = await (await Server.instance).get(id);
-      await (await LocalDatabase.instance).update(entity);
-      await (await InMemoryRepo.instance).update(entity);
+      notify_listeners(START_LOADING_OPERATION, null);
+      try {
+        entity = await (await Server.instance).get(id);
+        await (await LocalDatabase.instance).update(entity);
+        await (await InMemoryRepo.instance).update(entity);
+      } on AppException catch (ex) {
+        notify_listeners(END_LOADING_OPERATION, null);
+        throw ex;
+      }
     }
     return entity;
   }
 
   Future<void> add(DBPet entity) async {
     logger.info("Add ${entity.toMap()} called");
-    await (await Server.instance).add(entity);
+
+    notify_listeners(START_LOADING_OPERATION, null);
+    try{
+      await (await Server.instance).add(entity);
+    } on AppException catch (ex) {
+      notify_listeners(END_LOADING_OPERATION, null);
+      throw ex;
+    }
     // TODO skipped since add happens through WS. source of bugs in case this is not true
     // await (await LocalDatabase.instance).add(entity);
     // await (await InMemoryRepo.instance).add(entity);
@@ -111,8 +130,15 @@ class Repository {
 
   Future<void> delete(DBPet entity) async {
     logger.info("Delete ${entity.toMap()} called");
-    await (await Server.instance).delete(entity);
-    await (await LocalDatabase.instance).delete(entity);
-    await (await InMemoryRepo.instance).delete(entity);
+
+    notify_listeners(START_LOADING_OPERATION, null);
+    try{
+      await (await Server.instance).delete(entity);
+      await (await LocalDatabase.instance).delete(entity);
+      await (await InMemoryRepo.instance).delete(entity);
+    } on AppException catch (ex) {
+      notify_listeners(END_LOADING_OPERATION, null);
+      throw ex;
+    }
   }
 }
