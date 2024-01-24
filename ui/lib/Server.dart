@@ -236,21 +236,41 @@ class Server {
             logger.info("error happened");
             this._isConnected = false;
             notify_listeners(CONNECTION, null);
+            if (auto_retry) {
+              Timer(Duration(seconds: 5), () {
+                retry_connection();
+              });
+            }
           },
           onDone: () {
             logger.info("done happened");
             this._isConnected = false;
             notify_listeners(CONNECTION, null);
+            if (auto_retry) {
+              Timer(Duration(seconds: 5), () {
+                retry_connection();
+              });
+            }
           }
       );
     } on WebSocketChannelException catch (_) {
       logger.info("initial exception happened happened");
       this._isConnected = false;
       notify_listeners(CONNECTION, null);
+      if (auto_retry) {
+        Timer(Duration(seconds: 5), () {
+          retry_connection();
+        });
+      }
     } on SocketException catch (_) {
       logger.info("initial exception happened happened");
       this._isConnected = false;
       notify_listeners(CONNECTION, null);
+      if (auto_retry) {
+        Timer(Duration(seconds: 5), () {
+          retry_connection();
+        });
+      }
     } finally {
       notify_listeners(END_LOADING_OPERATION, null);
     }
