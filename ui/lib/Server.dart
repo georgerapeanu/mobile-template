@@ -8,6 +8,7 @@ import 'package:ui/AppException.dart';
 import 'package:ui/Pet.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:connectivity/connectivity.dart';
 
 //autoretry would be nice to be opt-in
 // online/offline based on websocket
@@ -38,6 +39,7 @@ class Server {
     'Accept': 'application/json',
   };
   late WebSocketChannel channel;
+  final Connectivity connectivity = Connectivity();
 
 
   bool _isConnected = false;
@@ -59,6 +61,23 @@ class Server {
 
   static Future<Server> _initServer() async {
     Server server = Server._();
+    server.connectivity.onConnectivityChanged.listen((event) {
+      if(event == ConnectivityResult.none) {
+        try {
+          server._isConnected = false;
+          server.notify_listeners(CONNECTION, null);
+          server.channel.sink.close();
+        } on http.ClientException {
+          ;
+        } on SocketException {
+          ;
+        }
+      } else {
+          if(!server.isConnected && auto_retry) {
+            server.retry_connection();
+          }
+      }
+    });
     server.retry_connection();
     return server;
   }
@@ -217,41 +236,21 @@ class Server {
             logger.info("error happened");
             this._isConnected = false;
             notify_listeners(CONNECTION, null);
-            if (auto_retry) {
-              Timer(Duration(seconds: 5), () {
-                retry_connection();
-              });
-            }
           },
           onDone: () {
             logger.info("done happened");
             this._isConnected = false;
             notify_listeners(CONNECTION, null);
-            if (auto_retry) {
-              Timer(Duration(seconds: 5), () {
-                retry_connection();
-              });
-            }
           }
       );
     } on WebSocketChannelException catch (_) {
       logger.info("initial exception happened happened");
       this._isConnected = false;
       notify_listeners(CONNECTION, null);
-      if (auto_retry) {
-        Timer(Duration(seconds: 5), () {
-          retry_connection();
-        });
-      }
     } on SocketException catch (_) {
       logger.info("initial exception happened happened");
       this._isConnected = false;
       notify_listeners(CONNECTION, null);
-      if (auto_retry) {
-        Timer(Duration(seconds: 5), () {
-          retry_connection();
-        });
-      }
     } finally {
       notify_listeners(END_LOADING_OPERATION, null);
     }

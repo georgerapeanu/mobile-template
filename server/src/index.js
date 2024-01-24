@@ -40,12 +40,14 @@ const pets = [
 ];
 
 const router = new Router();
-router.get('/pets', ctx => {
+router.get('/pets', async ctx => {
+  await new Promise(r => setTimeout(r, 2000));
   ctx.response.body = pets.map(obj => { return { id: obj.id, name: obj.name } });
   ctx.response.status = 200;
 });
 
-router.get('/pet/:id', ctx => {
+router.get('/pet/:id', async ctx => {
+  await new Promise(r => setTimeout(r, 2000));
   // console.log("ctx: " + JSON.stringify(ctx));
   const headers = ctx.params;
   const id = headers.id;
@@ -76,7 +78,8 @@ const broadcast = (data) =>
     }
   });
 
-router.post('/pet', ctx => {
+router.post('/pet', async ctx => {
+  await new Promise(r => setTimeout(r, 2000));
   // console.log("ctx: " + JSON.stringify(ctx));
   const headers = ctx.request.body;
   // console.log("body: " + JSON.stringify(headers));
@@ -128,7 +131,8 @@ router.post('/pet', ctx => {
   }
 });
 
-router.del('/pet/:id', ctx => {
+router.del('/pet/:id', async ctx => {
+  await new Promise(r => setTimeout(r, 2000));
   // console.log("ctx: " + JSON.stringify(ctx));
   const headers = ctx.params;
   // console.log("body: " + JSON.stringify(headers));
