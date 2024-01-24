@@ -48,9 +48,8 @@ class Repository {
       }
       entities ??= await (await LocalDatabase.instance).get_all();
       await (await InMemoryRepo.instance).bulkAdd(entities);
-    } on AppException catch (ex) {
+    } finally {
       notify_listeners(END_LOADING_OPERATION, null);
-      throw ex;
     }
   }
 
@@ -105,9 +104,8 @@ class Repository {
         entity = await (await Server.instance).get(id);
         await (await LocalDatabase.instance).update(entity);
         await (await InMemoryRepo.instance).update(entity);
-      } on AppException catch (ex) {
+      } finally {
         notify_listeners(END_LOADING_OPERATION, null);
-        throw ex;
       }
     }
     return entity;
@@ -119,9 +117,8 @@ class Repository {
     notify_listeners(START_LOADING_OPERATION, null);
     try{
       await (await Server.instance).add(entity);
-    } on AppException catch (ex) {
+    } finally {
       notify_listeners(END_LOADING_OPERATION, null);
-      throw ex;
     }
     // TODO skipped since add happens through WS. source of bugs in case this is not true
     // await (await LocalDatabase.instance).add(entity);
@@ -136,9 +133,8 @@ class Repository {
       await (await Server.instance).delete(entity);
       await (await LocalDatabase.instance).delete(entity);
       await (await InMemoryRepo.instance).delete(entity);
-    } on AppException catch (ex) {
+    } finally {
       notify_listeners(END_LOADING_OPERATION, null);
-      throw ex;
     }
   }
 }
